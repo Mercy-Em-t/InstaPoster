@@ -74,11 +74,12 @@ export default function Analytics() {
   )
 }
 
-function MiniStat({ label, value, icon: Icon }) {
+function MiniStat({ label, value, icon }) {
+  const IconComponent = icon
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm flex items-center gap-4">
       <div className="p-3 bg-indigo-50 rounded-lg">
-        <Icon size={20} className="text-indigo-600" />
+        <IconComponent size={20} className="text-indigo-600" />
       </div>
       <div>
         <p className="text-sm text-gray-500">{label}</p>

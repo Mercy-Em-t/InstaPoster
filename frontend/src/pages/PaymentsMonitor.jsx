@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { getPayments, retryPayment } from '../services/api'
 import { RotateCcw, Wallet } from 'lucide-react'
@@ -16,11 +16,7 @@ export default function PaymentsMonitor() {
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState({})
 
-  useEffect(() => {
-    load()
-  }, [status])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await getPayments({ status: status || undefined, limit: 50 })
@@ -31,7 +27,11 @@ export default function PaymentsMonitor() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [status])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   async function handleRetry(payment) {
     setRetrying((prev) => ({ ...prev, [payment.id]: true }))

@@ -4,7 +4,6 @@ const prisma = require('../../db/prisma');
 const instagramService = require('../../services/instagram.service');
 const { addPostPublishJob } = require('../../jobs/queue');
 const { createError } = require('../../middleware/errorHandler');
-const { nanoid } = require('nanoid');
 
 /**
  * GET /api/posts
@@ -90,7 +89,7 @@ async function createPost(req, res, next) {
         },
         trackingLinks: {
           create: {
-            code: nanoid(8),
+            code: generateTrackingCode(),
           },
         },
       },
@@ -235,6 +234,11 @@ async function schedulePost(req, res, next) {
     if (err.code === 'P2025') return next(createError(404, 'Post not found'));
     next(err);
   }
+}
+
+function generateTrackingCode(length = 8) {
+  // URL-safe, human-readable short code
+  return Math.random().toString(36).slice(2, 2 + length);
 }
 
 module.exports = { listPosts, createPost, getPost, updatePost, deletePost, publishPost, schedulePost };

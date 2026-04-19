@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { getPosts, getProducts } from '../services/api'
 import { Image, ShoppingBag, CheckCircle, Clock, TrendingUp } from 'lucide-react'
 
-function StatCard({ label, value, icon: Icon, color }) {
+function StatCard({ label, value, icon, color }) {
+  const IconComponent = icon
   return (
     <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
       <div className={`p-3 rounded-lg ${color}`}>
-        <Icon size={22} className="text-white" />
+        <IconComponent size={22} className="text-white" />
       </div>
       <div>
         <p className="text-sm text-gray-500">{label}</p>

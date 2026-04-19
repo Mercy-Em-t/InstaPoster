@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getOrders } from '../services/api'
 import { ShoppingBag } from 'lucide-react'
 
@@ -16,11 +16,7 @@ export default function OrdersDashboard() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    load(page)
-  }, [page])
-
-  async function load(targetPage = 1) {
+  const load = useCallback(async (targetPage = 1) => {
     setLoading(true)
     try {
       const res = await getOrders({ page: targetPage, limit: 20 })
@@ -32,7 +28,11 @@ export default function OrdersDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    load(page)
+  }, [load, page])
 
   return (
     <div className="p-8">

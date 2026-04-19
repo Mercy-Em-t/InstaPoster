@@ -31,11 +31,11 @@ export default function App() {
             <p className="text-xs text-gray-400 mt-0.5">Content-Commerce Engine</p>
           </div>
           <nav className="flex-1 py-4 space-y-1 px-3">
-            {navItems.map(({ to, label, icon: Icon }) => (
+            {navItems.map((item) => (
               <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
@@ -44,8 +44,8 @@ export default function App() {
                   }`
                 }
               >
-                <Icon size={18} />
-                {label}
+                <item.icon size={18} />
+                {item.label}
               </NavLink>
             ))}
           </nav>
