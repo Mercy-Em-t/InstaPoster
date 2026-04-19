@@ -10,6 +10,7 @@
 
 const prisma = require('../../db/prisma');
 const { createError } = require('../../middleware/errorHandler');
+const { broadcast } = require('../../realtime/ws');
 
 /**
  * POST /api/webhooks/order-created
@@ -48,6 +49,13 @@ async function orderCreated(req, res, next) {
     });
 
     console.log(`[Webhook] Order ${order_id} from ${source} bridged (link: ${tracking_code || 'none'})`);
+    broadcast('order:created', {
+      id: bridge.id,
+      externalOrderId: bridge.externalOrderId,
+      sourceSystem: bridge.sourceSystem,
+      orderStatus: bridge.orderStatus,
+      trackingLinkId: bridge.trackingLinkId,
+    });
     res.status(201).json(bridge);
   } catch (err) {
     next(err);

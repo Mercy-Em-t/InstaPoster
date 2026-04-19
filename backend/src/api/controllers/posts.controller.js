@@ -4,6 +4,7 @@ const prisma = require('../../db/prisma');
 const instagramService = require('../../services/instagram.service');
 const { addPostPublishJob } = require('../../jobs/queue');
 const { createError } = require('../../middleware/errorHandler');
+const { broadcast } = require('../../realtime/ws');
 
 /**
  * GET /api/posts
@@ -104,6 +105,7 @@ async function createPost(req, res, next) {
       }
     }
 
+    broadcast('post:created', { id: post.id, title: post.title, status: post.status, scheduledAt: post.scheduledAt });
     res.status(201).json(post);
   } catch (err) {
     next(err);
@@ -162,6 +164,7 @@ async function updatePost(req, res, next) {
 async function deletePost(req, res, next) {
   try {
     await prisma.contentPost.delete({ where: { id: req.params.id } });
+    broadcast('post:deleted', { id: req.params.id });
     res.json({ message: 'Post deleted' });
   } catch (err) {
     if (err.code === 'P2025') return next(createError(404, 'Post not found'));
@@ -195,6 +198,12 @@ async function publishPost(req, res, next) {
       data: { status: 'POSTED', postedAt: new Date(), instagramPostId },
     });
 
+    broadcast('post:published', {
+      id: updated.id,
+      status: updated.status,
+      instagramPostId: updated.instagramPostId,
+      postedAt: updated.postedAt,
+    });
     res.json(updated);
   } catch (err) {
     // Mark post as FAILED if Instagram errors
@@ -229,6 +238,7 @@ async function schedulePost(req, res, next) {
     const delay = scheduledDate.getTime() - Date.now();
     await addPostPublishJob(post.id, delay);
 
+    broadcast('post:scheduled', { id: post.id, status: post.status, scheduledAt: post.scheduledAt });
     res.json(post);
   } catch (err) {
     if (err.code === 'P2025') return next(createError(404, 'Post not found'));

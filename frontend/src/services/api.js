@@ -5,6 +5,17 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('instaposter_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export const login = (email, password) => api.post('/auth/login', { email, password })
+export const getMe = () => api.get('/auth/me')
+
 // Posts
 export const getPosts = (params) => api.get('/posts', { params })
 export const createPost = (data) => api.post('/posts', data)

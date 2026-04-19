@@ -2,8 +2,10 @@
 
 require('dotenv').config();
 
+const http = require('http');
 const app = require('./app');
 const { initQueues } = require('./jobs/queue');
+const { initWebSocket } = require('./realtime/ws');
 const { logInfo, logError } = require('./services/log.service');
 
 const PORT = process.env.PORT || 3001;
@@ -11,7 +13,9 @@ const PORT = process.env.PORT || 3001;
 async function main() {
   try {
     await initQueues();
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    initWebSocket(server);
+    server.listen(PORT, () => {
       logInfo('Server started', {
         port: PORT,
         env: process.env.NODE_ENV || 'development',

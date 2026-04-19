@@ -15,6 +15,7 @@ const prisma = require('../../db/prisma');
 const mpesaService = require('../../services/mpesa.service');
 const { addPaymentRetryJob } = require('../../jobs/queue');
 const { createError } = require('../../middleware/errorHandler');
+const { broadcast } = require('../../realtime/ws');
 
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -65,6 +66,13 @@ async function initiatePayment(req, res, next) {
       paymentId: payment.id,
       checkoutRequestId,
       message: 'STK push sent. Await customer confirmation.',
+    });
+    broadcast('payment:initiated', {
+      paymentId: payment.id,
+      status: 'PENDING',
+      checkoutRequestId,
+      amount: payment.amount,
+      externalOrderId: payment.externalOrderId,
     });
   } catch (err) {
     next(err);
@@ -120,6 +128,12 @@ async function mpesaCallback(req, res, _next) {
     ]);
 
     console.log(`[M-Pesa] Payment ${tx.paymentId} → ${newPaymentStatus} (receipt: ${parsed.receiptNumber || 'N/A'})`);
+    broadcast('payment:updated', {
+      paymentId: tx.paymentId,
+      status: newPaymentStatus,
+      receiptNumber: parsed.receiptNumber || null,
+      checkoutRequestId: parsed.checkoutRequestId,
+    });
   } catch (err) {
     console.error('[M-Pesa Callback] Processing error:', err.message);
   }
