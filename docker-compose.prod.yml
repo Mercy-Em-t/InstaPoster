@@ -22,7 +22,7 @@ services:
     environment:
       POSTGRES_DB: instaposter
       POSTGRES_USER: instaposter
-      POSTGRES_PASSWORD: change-me
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

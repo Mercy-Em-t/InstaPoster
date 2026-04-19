@@ -1,6 +1,7 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { AppError } = require('../utils/AppError');
 
 function getJwtSecret() {
@@ -20,9 +21,9 @@ function getConfiguredUsers() {
 
   if (!raw) {
     return [
-      { id: 'dev-admin', email: 'admin@local', password: 'admin123', role: 'ADMIN', name: 'Local Admin' },
-      { id: 'dev-staff', email: 'staff@local', password: 'staff123', role: 'STAFF', name: 'Local Staff' },
-      { id: 'dev-viewer', email: 'viewer@local', password: 'viewer123', role: 'VIEWER', name: 'Local Viewer' },
+      { id: 'dev-admin', email: 'admin@local', passwordHash: hashPassword('admin123'), role: 'ADMIN', name: 'Local Admin' },
+      { id: 'dev-staff', email: 'staff@local', passwordHash: hashPassword('staff123'), role: 'STAFF', name: 'Local Staff' },
+      { id: 'dev-viewer', email: 'viewer@local', passwordHash: hashPassword('viewer123'), role: 'VIEWER', name: 'Local Viewer' },
     ];
   }
 
@@ -32,13 +33,23 @@ function getConfiguredUsers() {
       throw new Error('DASHBOARD_USERS must be a non-empty array');
     }
 
-    return parsed.map((user, index) => ({
+    const users = parsed.map((user, index) => ({
       id: user.id || `configured-${index + 1}`,
       email: String(user.email || '').toLowerCase(),
-      password: String(user.password || ''),
+      passwordHash: user.passwordHash || (
+        process.env.NODE_ENV === 'production'
+          ? ''
+          : hashPassword(String(user.password || ''))
+      ),
       role: user.role || 'STAFF',
       name: user.name || user.email,
     }));
+
+    if (process.env.NODE_ENV === 'production' && users.some((user) => !user.passwordHash)) {
+      throw new Error('Each DASHBOARD_USERS entry must include passwordHash in production');
+    }
+
+    return users;
   } catch (err) {
     throw new AppError('Invalid DASHBOARD_USERS configuration', 500, { detail: err.message });
   }
@@ -73,8 +84,9 @@ function verifyToken(token) {
 
 function login(email, password) {
   const user = findUserByEmail(email);
+  const candidatePassword = String(password || '');
 
-  if (!user || user.password !== String(password || '')) {
+  if (!user || !user.passwordHash || !verifyPassword(candidatePassword, user.passwordHash)) {
     throw new AppError('Invalid email or password', 401);
   }
 
@@ -87,3 +99,26 @@ module.exports = {
   verifyToken,
   sanitizeUser,
 };
+
+function hashPassword(value) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(value, salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+function verifyPassword(password, encodedHash) {
+  const parts = encodedHash.split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+
+  const [, salt, expectedHex] = parts;
+  const calculatedHex = crypto.scryptSync(password, salt, 64).toString('hex');
+
+  return safeEqual(expectedHex, calculatedHex);
+}
+
+function safeEqual(leftValue, rightValue) {
+  const left = Buffer.from(leftValue, 'utf8');
+  const right = Buffer.from(rightValue, 'utf8');
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}

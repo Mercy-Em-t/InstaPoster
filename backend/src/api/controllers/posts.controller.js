@@ -226,7 +226,7 @@ async function schedulePost(req, res, next) {
     if (!scheduledAt) return next(createError(400, 'scheduledAt is required'));
 
     const scheduledDate = new Date(scheduledAt);
-    if (scheduledDate <= new Date()) {
+    if (scheduledDate < new Date()) {
       return next(createError(400, 'scheduledAt must be in the future'));
     }
 

@@ -11,20 +11,17 @@
 const { Pool } = require('pg');
 const { createError } = require('../../middleware/errorHandler');
 
-// Pool that connects to the database hosting the unified views
-function getPool() {
-  return new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 5,
-  });
-}
+// Shared pool for unified product views
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 5,
+});
 
 /**
  * GET /api/products
  * List products from the unified view with optional search & pagination.
  */
 async function listProducts(req, res, next) {
-  const pool = getPool();
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, parseInt(req.query.limit) || 20);
@@ -71,8 +68,6 @@ async function listProducts(req, res, next) {
     });
   } catch (err) {
     next(err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -82,7 +77,6 @@ async function listProducts(req, res, next) {
  * Query param: source (required to disambiguate across stores)
  */
 async function getProduct(req, res, next) {
-  const pool = getPool();
   try {
     const { id } = req.params;
     const source = req.query.source || 'main_store';
@@ -96,8 +90,6 @@ async function getProduct(req, res, next) {
     res.json(rows[0]);
   } catch (err) {
     next(err);
-  } finally {
-    await pool.end();
   }
 }
 
