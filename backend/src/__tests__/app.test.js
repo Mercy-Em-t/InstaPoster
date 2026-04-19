@@ -23,14 +23,15 @@ jest.mock('../db/prisma', () => ({
   contentProduct: { create: jest.fn() },
   trackingLink: { findUnique: jest.fn() },
   linkClick: { create: jest.fn() },
-  orderBridge: { create: jest.fn() },
-  payment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  orderBridge: { create: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  payment: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
   mpesaTransaction: {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
   },
+  $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 }));
 
@@ -95,6 +96,7 @@ describe('POST /api/posts', () => {
       status: 'DRAFT',
       slides: [],
       contentProducts: [],
+      trackingLinks: [{ code: 'abc123' }],
     });
 
     const res = await request(app)
@@ -166,6 +168,32 @@ describe('POST /api/payments/stk-push', () => {
   });
 });
 
+describe('GET /api/payments', () => {
+  it('returns payments monitor list', async () => {
+    prisma.payment.findMany.mockResolvedValue([]);
+    prisma.payment.count.mockResolvedValue(0);
+
+    const res = await request(app).get('/api/payments');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('data');
+    expect(res.body).toHaveProperty('meta');
+  });
+});
+
+describe('POST /api/payments/:id/retry', () => {
+  it('queues retry for failed payment', async () => {
+    prisma.payment.findUnique.mockResolvedValue({
+      id: 'pay-1',
+      status: 'FAILED',
+      mpesaTransaction: { id: 'tx-1' },
+    });
+
+    const res = await request(app).post('/api/payments/pay-1/retry').send({ attempt: 0 });
+    expect(res.status).toBe(202);
+    expect(res.body.paymentId).toBe('pay-1');
+  });
+});
+
 // ── Tracking ────────────────────────────────────────────────────────────────
 
 describe('GET /api/t/:code', () => {
@@ -213,5 +241,41 @@ describe('POST /api/webhooks/order-created', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe('bridge-1');
+  });
+});
+
+describe('GET /api/orders', () => {
+  it('returns bridged orders with payment info', async () => {
+    prisma.orderBridge.findMany.mockResolvedValue([
+      {
+        id: 'bridge-1',
+        externalOrderId: '123',
+        sourceSystem: 'main_store',
+        createdAt: new Date().toISOString(),
+        trackingLink: { code: 'abc123', post: { id: 'post-1', title: 'My Post', instagramPostId: null } },
+      },
+    ]);
+    prisma.orderBridge.count.mockResolvedValue(1);
+    prisma.payment.findMany.mockResolvedValue([
+      { id: 'pay-1', externalOrderId: '123', status: 'SUCCESS', amount: 500, mpesaTransaction: { status: 'SUCCESS' } },
+    ]);
+
+    const res = await request(app).get('/api/orders');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].paymentStatus).toBe('SUCCESS');
+  });
+});
+
+describe('GET /api/analytics/posts', () => {
+  it('returns post analytics metrics', async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      { postId: 'post-1', title: 'Post', status: 'POSTED', postedAt: null, clicks: 10, sales: 2, conversionRate: 20 },
+    ]);
+
+    const res = await request(app).get('/api/analytics/posts');
+    expect(res.status).toBe(200);
+    expect(res.body.summary.totalClicks).toBe(10);
+    expect(res.body.summary.totalSales).toBe(2);
   });
 });

@@ -20,6 +20,14 @@ export const getProduct = (id, source) => api.get(`/products/${id}`, { params: {
 
 // Payments
 export const initiateSTKPush = (data) => api.post('/payments/stk-push', data)
+export const getPayments = (params) => api.get('/payments', { params })
 export const getPayment = (id) => api.get(`/payments/${id}`)
+export const retryPayment = (id, attempt = 0) => api.post(`/payments/${id}/retry`, { attempt })
+
+// Orders dashboard
+export const getOrders = (params) => api.get('/orders', { params })
+
+// Analytics
+export const getPostAnalytics = () => api.get('/analytics/posts')
 
 export default api

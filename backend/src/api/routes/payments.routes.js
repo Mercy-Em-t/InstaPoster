@@ -11,7 +11,11 @@ router.post('/stk-push', paymentsController.initiatePayment);
 // Safaricom callback (body already raw-buffered in app.js)
 router.post('/mpesa/callback', paymentsController.mpesaCallback);
 
-// Query payment status
+// Payments monitor list + retry
+router.get('/', paymentsController.listPayments);
+router.post('/:id/retry', paymentsController.retryPayment);
+
+// Query single payment status
 router.get('/:id', paymentsController.getPayment);
 
 module.exports = router;

@@ -24,6 +24,7 @@ async function processPaymentRetry(job) {
 
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
+    include: { mpesaTransaction: true },
   });
 
   if (!payment) {
@@ -45,14 +46,25 @@ async function processPaymentRetry(job) {
       orderId: payment.externalOrderId || paymentId,
     });
 
-    // Reset payment and create a new transaction record
+    // Reset payment and update existing transaction record
     await prisma.$transaction([
       prisma.payment.update({
         where: { id: paymentId },
         data: { status: 'PENDING' },
       }),
-      prisma.mpesaTransaction.create({
-        data: {
+      prisma.mpesaTransaction.upsert({
+        where: { paymentId },
+        update: {
+          phone: payment.phone,
+          checkoutRequestId,
+          merchantRequestId,
+          status: 'PENDING',
+          resultCode: null,
+          resultDesc: null,
+          mpesaReceiptNumber: null,
+          amount: null,
+        },
+        create: {
           paymentId,
           phone: payment.phone,
           checkoutRequestId,

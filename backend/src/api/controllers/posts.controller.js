@@ -4,6 +4,7 @@ const prisma = require('../../db/prisma');
 const instagramService = require('../../services/instagram.service');
 const { addPostPublishJob } = require('../../jobs/queue');
 const { createError } = require('../../middleware/errorHandler');
+const { nanoid } = require('nanoid');
 
 /**
  * GET /api/posts
@@ -24,7 +25,11 @@ async function listPosts(req, res, next) {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
-        include: { slides: { orderBy: { slideOrder: 'asc' } }, contentProducts: true },
+        include: {
+          slides: { orderBy: { slideOrder: 'asc' } },
+          contentProducts: true,
+          trackingLinks: true,
+        },
       }),
       prisma.contentPost.count({ where }),
     ]);
@@ -83,8 +88,13 @@ async function createPost(req, res, next) {
             productSource: p.productSource || 'main_store',
           })),
         },
+        trackingLinks: {
+          create: {
+            code: nanoid(8),
+          },
+        },
       },
-      include: { slides: true, contentProducts: true },
+      include: { slides: true, contentProducts: true, trackingLinks: true },
     });
 
     // If scheduled, enqueue the publish job

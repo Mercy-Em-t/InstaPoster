@@ -4,13 +4,16 @@
  * Payments Controller — M-Pesa STK Push
  *
  * Endpoints:
- *   POST /api/payments/stk-push      — initiate STK push
- *   POST /api/payments/mpesa/callback — receive Safaricom callback
- *   GET  /api/payments/:id            — get payment status
+ *   POST /api/payments/stk-push        — initiate STK push
+ *   POST /api/payments/mpesa/callback  — receive Safaricom callback
+ *   GET  /api/payments                 — list payments monitor data
+ *   GET  /api/payments/:id             — get single payment status
+ *   POST /api/payments/:id/retry       — enqueue payment retry
  */
 
 const prisma = require('../../db/prisma');
 const mpesaService = require('../../services/mpesa.service');
+const { addPaymentRetryJob } = require('../../jobs/queue');
 const { createError } = require('../../middleware/errorHandler');
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -73,7 +76,7 @@ async function initiatePayment(req, res, next) {
  * Called by Safaricom after customer action (confirm / cancel / timeout).
  * Always respond 200 immediately — Safaricom may retry if we take too long.
  */
-async function mpesaCallback(req, res, next) {
+async function mpesaCallback(req, res, _next) {
   // Acknowledge receipt immediately
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
@@ -123,6 +126,40 @@ async function mpesaCallback(req, res, next) {
 }
 
 /**
+ * GET /api/payments
+ * Payments monitor list:
+ * - stk status
+ * - failed/pending filter
+ */
+async function listPayments(req, res, next) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 20);
+    const skip = (page - 1) * limit;
+    const status = req.query.status;
+
+    const where = status ? { status } : {};
+
+    const [payments, total] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          mpesaTransaction: true,
+        },
+      }),
+      prisma.payment.count({ where }),
+    ]);
+
+    res.json({ data: payments, meta: { total, page, limit, pages: Math.ceil(total / limit) } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * GET /api/payments/:id
  */
 async function getPayment(req, res, next) {
@@ -139,4 +176,32 @@ async function getPayment(req, res, next) {
   }
 }
 
-module.exports = { initiatePayment, mpesaCallback, getPayment, MAX_RETRY_ATTEMPTS };
+/**
+ * POST /api/payments/:id/retry
+ */
+async function retryPayment(req, res, next) {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.id },
+      include: { mpesaTransaction: true },
+    });
+
+    if (!payment) return next(createError(404, 'Payment not found'));
+    if (payment.status === 'SUCCESS') {
+      return next(createError(409, 'Payment is already successful'));
+    }
+
+    const retries = Number(req.body?.attempt || 0);
+    if (retries >= MAX_RETRY_ATTEMPTS) {
+      return next(createError(400, `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) reached`));
+    }
+
+    await addPaymentRetryJob(payment.id, retries);
+
+    res.status(202).json({ message: 'Retry queued', paymentId: payment.id, attempt: retries + 1 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { initiatePayment, mpesaCallback, listPayments, getPayment, retryPayment, MAX_RETRY_ATTEMPTS };

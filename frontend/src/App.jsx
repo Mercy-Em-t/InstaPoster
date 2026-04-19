@@ -1,17 +1,21 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { LayoutDashboard, Image, Calendar, ShoppingBag, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Image, Calendar, ShoppingBag, BarChart2, ReceiptText, Wallet } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import ContentManager from './pages/ContentManager'
 import Scheduler from './pages/Scheduler'
 import Products from './pages/Products'
 import Analytics from './pages/Analytics'
+import OrdersDashboard from './pages/OrdersDashboard'
+import PaymentsMonitor from './pages/PaymentsMonitor'
 
 const navItems = [
   { to: '/',          label: 'Dashboard',   icon: LayoutDashboard },
   { to: '/content',  label: 'Content',      icon: Image },
   { to: '/schedule', label: 'Scheduler',    icon: Calendar },
   { to: '/products', label: 'Products',     icon: ShoppingBag },
+  { to: '/orders',   label: 'Orders',       icon: ReceiptText },
+  { to: '/payments', label: 'Payments',     icon: Wallet },
   { to: '/analytics',label: 'Analytics',    icon: BarChart2 },
 ]
 
@@ -57,6 +61,8 @@ export default function App() {
             <Route path="/content"   element={<ContentManager />} />
             <Route path="/schedule"  element={<Scheduler />} />
             <Route path="/products"  element={<Products />} />
+            <Route path="/orders"    element={<OrdersDashboard />} />
+            <Route path="/payments"  element={<PaymentsMonitor />} />
             <Route path="/analytics" element={<Analytics />} />
           </Routes>
         </main>

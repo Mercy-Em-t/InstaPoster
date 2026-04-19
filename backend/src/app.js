@@ -10,6 +10,8 @@ const productsRouter = require('./api/routes/products.routes');
 const trackingRouter = require('./api/routes/tracking.routes');
 const paymentsRouter = require('./api/routes/payments.routes');
 const webhooksRouter = require('./api/routes/webhooks.routes');
+const ordersRouter = require('./api/routes/orders.routes');
+const analyticsRouter = require('./api/routes/analytics.routes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { defaultLimiter, paymentLimiter } = require('./middleware/rateLimiter');
 
@@ -38,6 +40,8 @@ app.use('/api/products', defaultLimiter, productsRouter);
 app.use('/api/t', defaultLimiter, trackingRouter);
 app.use('/api/payments', paymentLimiter, paymentsRouter);
 app.use('/api/webhooks', defaultLimiter, webhooksRouter);
+app.use('/api/orders', defaultLimiter, ordersRouter);
+app.use('/api/analytics', defaultLimiter, analyticsRouter);
 
 // ── Error Handler ─────────────────────────────────────────────────────────
 app.use(errorHandler);

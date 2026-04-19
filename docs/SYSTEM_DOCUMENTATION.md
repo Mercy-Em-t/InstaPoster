@@ -5,12 +5,14 @@
 2. [Database Schema](#2-database-schema)
 3. [Unified Product Views](#3-unified-product-views)
 4. [API Reference](#4-api-reference)
-5. [M-Pesa STK Push Flow](#5-m-pesa-stk-push-flow)
-6. [Instagram Publishing Flow](#6-instagram-publishing-flow)
-7. [Job Queue System](#7-job-queue-system)
-8. [Frontend Dashboard](#8-frontend-dashboard)
-9. [Operations Playbook](#9-operations-playbook)
-10. [Environment Variables](#10-environment-variables)
+5. [Tracking Flow (Full Loop)](#5-tracking-flow-full-loop)
+6. [M-Pesa STK Push Flow](#6-m-pesa-stk-push-flow)
+7. [Instagram Publishing Flow](#7-instagram-publishing-flow)
+8. [Job Queue System](#8-job-queue-system)
+9. [Frontend Dashboard](#9-frontend-dashboard)
+10. [Operations Playbook](#10-operations-playbook)
+11. [Risks + Mitigations](#11-risks--mitigations)
+12. [Environment Variables](#12-environment-variables)
 
 ---
 
@@ -127,6 +129,23 @@ InstaPoster owns only these tables (managed via Prisma):
 | status | Enum | PENDING / SUCCESS / FAILED / TIMEOUT |
 | resultCode | Int? | Safaricom result code |
 
+### Relationships (key)
+- `content_posts 1:N content_slides`
+- `content_posts 1:N content_products`
+- `content_posts 1:N tracking_links`
+- `tracking_links 1:N link_clicks`
+- `tracking_links 1:N orders_bridge`
+- `payments 1:1 mpesa_transactions`
+
+### Indexes (key)
+- `content_posts(status, scheduledAt)` for scheduling queries
+- `content_products(productId, productSource)` for source-safe product lookups
+- `tracking_links(code UNIQUE)` for fast redirect lookup
+- `link_clicks(trackingLinkId, clickedAt)` for analytics windows
+- `orders_bridge(externalOrderId, sourceSystem)` for order correlation
+- `payments(status, createdAt)` and `payments(externalOrderId)` for monitor/order joins
+- `mpesa_transactions(status, createdAt)` for timeout scans
+
 ---
 
 ## 3. Unified Product Views
@@ -199,7 +218,9 @@ Base URL: `http://localhost:3001/api`
 |--------|----------|-------------|
 | POST | `/payments/stk-push` | Initiate M-Pesa STK push |
 | POST | `/payments/mpesa/callback` | Safaricom callback (webhook) |
+| GET | `/payments` | Payments monitor list |
 | GET | `/payments/:id` | Get payment status |
+| POST | `/payments/:id/retry` | Queue retry for failed/timeout payments |
 
 #### POST /payments/stk-push — Request Body
 ```json
@@ -228,7 +249,23 @@ Base URL: `http://localhost:3001/api`
 
 ---
 
-## 5. M-Pesa STK Push Flow
+## 5. Tracking Flow (Full Loop)
+
+```
+Post created
+  → tracking_link generated
+  → user clicks link
+  → click logged
+  → redirect to product page
+  → order created in existing system
+  → webhook /webhooks/order-created fires
+  → orders_bridge updated
+  → analytics endpoint reflects updated clicks/sales/conversion
+```
+
+---
+
+## 6. M-Pesa STK Push Flow
 
 ```
 Customer → "Order" → Backend
@@ -266,7 +303,7 @@ Customer → "Order" → Backend
 
 ---
 
-## 6. Instagram Publishing Flow
+## 7. Instagram Publishing Flow
 
 Requires:
 - Instagram Business Account connected to a Facebook Page
@@ -299,7 +336,7 @@ Requires:
 
 ---
 
-## 7. Job Queue System
+## 8. Job Queue System
 
 Uses **BullMQ + Redis**.
 
@@ -320,7 +357,7 @@ node src/jobs/worker.js
 
 ---
 
-## 8. Frontend Dashboard
+## 9. Frontend Dashboard
 
 React + Vite + Tailwind CSS
 
@@ -330,7 +367,9 @@ React + Vite + Tailwind CSS
 | Content Manager | `/content` | Create, view, publish, delete carousels |
 | Scheduler | `/schedule` | Schedule posts to publish at specific times |
 | Products | `/products` | Browse unified product view (read-only) |
-| Analytics | `/analytics` | Published posts, tracking links, conversion data |
+| Orders Dashboard | `/orders` | Bridge orders + payment status + tracking source post |
+| Payments Monitor | `/payments` | STK state monitor with retry action |
+| Analytics | `/analytics` | Clicks per post, sales per post, conversion rate |
 
 ```bash
 cd frontend
@@ -340,17 +379,23 @@ npm run build  # production build
 
 ---
 
-## 9. Operations Playbook
+## 10. Operations Playbook
 
 ### Daily
 1. Check scheduler for posts going live today
 2. Verify no payment timeouts (check `payments` table: status = TIMEOUT)
-3. Review Instagram for post performance
+3. Upload content and link products for upcoming posts
+4. Review Instagram for post performance
 
 ### Weekly
 1. Review analytics: top posts by clicks
 2. Review top-selling products (via existing system)
 3. Replenish content pipeline (create 3–5 new carousels)
+
+### Monthly
+1. Optimize winning products/post formats using conversion data
+2. Update content templates based on top conversion themes
+3. Review queue + API reliability metrics
 
 ### Failure Handling
 
@@ -380,7 +425,18 @@ ORDER BY clicks DESC;
 
 ---
 
-## 10. Environment Variables
+## 11. Risks + Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Instagram API limits | Queue publishing + API rate limiting to smooth bursts |
+| M-Pesa callback delays | Retry queue + timeout monitor + idempotent callback processing |
+| Data mismatch across source systems | Always use `(productId, source)` and `(externalOrderId, sourceSystem)` |
+| UNION query performance at scale | Cache hot queries and/or use materialized views |
+
+---
+
+## 12. Environment Variables
 
 See `backend/.env.example` for the full list.
 

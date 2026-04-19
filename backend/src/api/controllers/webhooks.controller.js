@@ -23,7 +23,7 @@ const { createError } = require('../../middleware/errorHandler');
  */
 async function orderCreated(req, res, next) {
   try {
-    const { order_id, source, tracking_code } = req.body;
+    const { order_id, source, tracking_code, order_status } = req.body;
 
     if (!order_id || !source) {
       return next(createError(400, 'order_id and source are required'));
@@ -42,6 +42,7 @@ async function orderCreated(req, res, next) {
       data: {
         externalOrderId: String(order_id),
         sourceSystem: source,
+        orderStatus: order_status || 'PENDING',
         trackingLinkId,
       },
     });

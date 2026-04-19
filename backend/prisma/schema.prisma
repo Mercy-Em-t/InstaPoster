@@ -31,6 +31,8 @@ model ContentPost {
   trackingLinks     TrackingLink[]
 
   @@map("content_posts")
+  @@index([status, scheduledAt])
+  @@index([createdAt])
 }
 
 model ContentSlide {
@@ -44,6 +46,7 @@ model ContentSlide {
   post         ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("content_slides")
+  @@index([postId, slideOrder])
 }
 
 // Links a carousel post to product(s) from unified_products view
@@ -57,6 +60,8 @@ model ContentProduct {
   post          ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("content_products")
+  @@index([postId])
+  @@index([productId, productSource])
 }
 
 // ─────────────────────────────────────────────
@@ -74,6 +79,7 @@ model TrackingLink {
   orderBridges OrderBridge[]
 
   @@map("tracking_links")
+  @@index([postId])
 }
 
 model LinkClick {
@@ -87,6 +93,7 @@ model LinkClick {
   trackingLink    TrackingLink @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
 
   @@map("link_clicks")
+  @@index([trackingLinkId, clickedAt])
 }
 
 // ─────────────────────────────────────────────
@@ -97,12 +104,15 @@ model OrderBridge {
   id              String        @id @default(cuid())
   externalOrderId String
   sourceSystem    String        // "main_store" | "secondary_store"
+  orderStatus     OrderStatus   @default(PENDING)
   trackingLinkId  String?
   createdAt       DateTime      @default(now())
 
   trackingLink    TrackingLink? @relation(fields: [trackingLinkId], references: [id])
 
   @@map("orders_bridge")
+  @@index([externalOrderId, sourceSystem])
+  @@index([trackingLinkId])
 }
 
 // ─────────────────────────────────────────────
@@ -122,6 +132,8 @@ model Payment {
   mpesaTransaction MpesaTransaction?
 
   @@map("payments")
+  @@index([externalOrderId])
+  @@index([status, createdAt])
 }
 
 model MpesaTransaction {
@@ -141,6 +153,7 @@ model MpesaTransaction {
   payment               Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("mpesa_transactions")
+  @@index([status, createdAt])
 }
 
 // ─────────────────────────────────────────────
@@ -166,4 +179,11 @@ enum MpesaTxStatus {
   SUCCESS
   FAILED
   TIMEOUT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  FULFILLED
 }
