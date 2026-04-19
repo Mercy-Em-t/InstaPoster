@@ -68,6 +68,7 @@ describe('GET /health', () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+    expect(res.headers['x-request-id']).toBeDefined();
   });
 });
 
@@ -79,6 +80,7 @@ describe('POST /api/posts', () => {
       .post('/api/posts')
       .send({ caption: 'Hello' });
     expect(res.status).toBe(400);
+    expect(res.body.requestId).toBeDefined();
   });
 
   it('returns 400 when caption is missing', async () => {
