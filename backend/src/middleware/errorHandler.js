@@ -3,17 +3,27 @@
 /**
  * Error Handler Middleware
  */
-function errorHandler(err, _req, res, _next) {
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+const { AppError } = require('../utils/AppError');
+const { logError } = require('../services/log.service');
 
-  if (process.env.NODE_ENV !== 'test') {
-    console.error(`[Error] ${status} — ${message}`, err.stack || '');
-  }
+function errorHandler(err, req, res, _next) {
+  const normalizedError = normalizeError(err);
+  const status = normalizedError.statusCode || normalizedError.status || 500;
+  const message = normalizedError.message || 'Internal Server Error';
+
+  logError({
+    requestId: req.requestId,
+    message,
+    stack: normalizedError.stack,
+    path: req.originalUrl || req.path,
+    method: req.method,
+    meta: normalizedError.meta || {},
+  });
 
   res.status(status).json({
     error: message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    requestId: req.requestId,
+    ...(process.env.NODE_ENV === 'development' && { stack: normalizedError.stack }),
   });
 }
 
@@ -21,9 +31,26 @@ function errorHandler(err, _req, res, _next) {
  * Create a well-formed HTTP error
  */
 function createError(status, message) {
-  const err = new Error(message);
-  err.status = status;
-  return err;
+  return new AppError(message, status);
 }
 
-module.exports = { errorHandler, createError };
+function normalizeError(err) {
+  if (err instanceof AppError) return err;
+
+  if (err && typeof err === 'object' && err.code && String(err.code).startsWith('P')) {
+    const mapped = mapPrismaStatus(err.code);
+    return new AppError('Database request failed', mapped, { code: err.code, detail: err.meta || {} });
+  }
+
+  const status = err?.statusCode || err?.status || 500;
+  const message = err?.message || 'Internal Server Error';
+  return new AppError(message, status, { originalName: err?.name });
+}
+
+function mapPrismaStatus(code) {
+  if (code === 'P2002') return 409;
+  if (code === 'P2025') return 404;
+  return 400;
+}
+
+module.exports = { errorHandler, createError, normalizeError };

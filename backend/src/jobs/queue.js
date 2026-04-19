@@ -10,8 +10,9 @@
  *   - analytics         : aggregates click & conversion metrics
  */
 
-const { Queue, Worker, QueueEvents } = require('bullmq');
+const { Queue, Worker } = require('bullmq');
 const IORedis = require('ioredis');
+const { logInfo, logError, logQueueFailure } = require('../services/log.service');
 
 let connection = null;
 let queues = {};
@@ -21,7 +22,11 @@ function getRedisConnection() {
     connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
       maxRetriesPerRequest: null, // required by BullMQ
     });
-    connection.on('error', (err) => console.error('[Redis] Connection error:', err.message));
+    connection.on('error', (err) => logError({
+      message: '[Redis] Connection error',
+      stack: err.stack,
+      meta: { detail: err.message },
+    }));
   }
   return connection;
 }
@@ -55,7 +60,7 @@ async function initQueues() {
   );
 
   startWorkers(conn);
-  console.log('[Queue] BullMQ queues initialized');
+  logInfo('BullMQ queues initialized');
 }
 
 function startWorkers(conn) {
@@ -64,10 +69,24 @@ function startWorkers(conn) {
   const { processPaymentRetry } = require('./paymentRetry.job');
   const { processAnalytics } = require('./analytics.job');
 
-  new Worker(QUEUE_NAMES.POST_PUBLISHER, processPostPublish, { connection: conn, concurrency: 2 });
-  new Worker(QUEUE_NAMES.PAYMENT_MONITOR, processPaymentMonitor, { connection: conn });
-  new Worker(QUEUE_NAMES.PAYMENT_RETRY, processPaymentRetry, { connection: conn });
-  new Worker(QUEUE_NAMES.ANALYTICS, processAnalytics, { connection: conn });
+  const workers = [
+    new Worker(QUEUE_NAMES.POST_PUBLISHER, processPostPublish, { connection: conn, concurrency: 2 }),
+    new Worker(QUEUE_NAMES.PAYMENT_MONITOR, processPaymentMonitor, { connection: conn }),
+    new Worker(QUEUE_NAMES.PAYMENT_RETRY, processPaymentRetry, { connection: conn }),
+    new Worker(QUEUE_NAMES.ANALYTICS, processAnalytics, { connection: conn }),
+  ];
+
+  workers.forEach((worker) => {
+    worker.on('failed', (job, err) => {
+      logQueueFailure({
+        queue: worker.name,
+        jobName: job?.name,
+        jobId: job?.id,
+        data: job?.data,
+        error: err.message,
+      });
+    });
+  });
 }
 
 /**

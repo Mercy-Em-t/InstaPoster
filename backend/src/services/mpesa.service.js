@@ -18,6 +18,7 @@
  */
 
 const axios = require('axios');
+const { AppError } = require('../utils/AppError');
 
 const SANDBOX_BASE = 'https://sandbox.safaricom.co.ke';
 const PROD_BASE = 'https://api.safaricom.co.ke';
@@ -37,17 +38,33 @@ async function generateToken() {
   const secret = process.env.MPESA_CONSUMER_SECRET;
 
   if (!key || !secret) {
-    throw new Error('MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET must be set');
+    throw new AppError('MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET must be set', 500, {
+      service: 'mpesa',
+      stage: 'generateToken',
+    });
   }
 
   const credentials = Buffer.from(`${key}:${secret}`).toString('base64');
 
-  const { data } = await axios.get(`${getBase()}/oauth/v1/generate?grant_type=client_credentials`, {
-    headers: { Authorization: `Basic ${credentials}` },
-  });
+  let data;
+  try {
+    ({ data } = await axios.get(`${getBase()}/oauth/v1/generate?grant_type=client_credentials`, {
+      headers: { Authorization: `Basic ${credentials}` },
+    }));
+  } catch (err) {
+    throw new AppError('M-Pesa OAuth token request failed', 502, {
+      service: 'mpesa',
+      stage: 'generateToken',
+      detail: err.response?.data || err.message,
+    });
+  }
 
   if (!data.access_token) {
-    throw new Error(`M-Pesa token generation failed: ${JSON.stringify(data)}`);
+    throw new AppError('M-Pesa token generation failed', 502, {
+      service: 'mpesa',
+      stage: 'generateToken',
+      detail: data,
+    });
   }
 
   return data.access_token;
@@ -64,7 +81,10 @@ function buildPassword() {
   const passkey = process.env.MPESA_PASSKEY;
 
   if (!shortcode || !passkey) {
-    throw new Error('MPESA_SHORTCODE and MPESA_PASSKEY must be set');
+    throw new AppError('MPESA_SHORTCODE and MPESA_PASSKEY must be set', 500, {
+      service: 'mpesa',
+      stage: 'buildPassword',
+    });
   }
 
   const timestamp = new Date()
@@ -87,8 +107,8 @@ async function initiateSTKPush({ phone, amount, orderId, description = 'InstaPos
   const shortcode = process.env.MPESA_SHORTCODE;
   const callbackUrl = process.env.MPESA_CALLBACK_URL;
 
-  if (!shortcode) throw new Error('MPESA_SHORTCODE is not set');
-  if (!callbackUrl) throw new Error('MPESA_CALLBACK_URL is not set');
+  if (!shortcode) throw new AppError('MPESA_SHORTCODE is not set', 500, { service: 'mpesa', stage: 'initiateSTKPush' });
+  if (!callbackUrl) throw new AppError('MPESA_CALLBACK_URL is not set', 500, { service: 'mpesa', stage: 'initiateSTKPush' });
 
   // Normalize phone: must be in format 2547XXXXXXXX
   const normalizedPhone = normalizePhone(phone);
@@ -110,14 +130,29 @@ async function initiateSTKPush({ phone, amount, orderId, description = 'InstaPos
     TransactionDesc: description,
   };
 
-  const { data } = await axios.post(
-    `${getBase()}/mpesa/stkpush/v1/processrequest`,
-    payload,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  let data;
+  try {
+    ({ data } = await axios.post(
+      `${getBase()}/mpesa/stkpush/v1/processrequest`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ));
+  } catch (err) {
+    throw new AppError('M-Pesa STK push request failed', 502, {
+      service: 'mpesa',
+      stage: 'initiateSTKPush',
+      orderId,
+      detail: err.response?.data || err.message,
+    });
+  }
 
   if (data.ResponseCode !== '0') {
-    throw new Error(`STK Push failed: ${data.ResponseDescription || JSON.stringify(data)}`);
+    throw new AppError('STK Push failed', 502, {
+      service: 'mpesa',
+      stage: 'initiateSTKPush',
+      orderId,
+      detail: data.ResponseDescription || data,
+    });
   }
 
   return {
@@ -136,7 +171,10 @@ async function initiateSTKPush({ phone, amount, orderId, description = 'InstaPos
 function parseCallback(body) {
   const callback = body?.Body?.stkCallback;
   if (!callback) {
-    throw new Error('Invalid M-Pesa callback body structure');
+    throw new AppError('Invalid M-Pesa callback body structure', 400, {
+      service: 'mpesa',
+      stage: 'parseCallback',
+    });
   }
 
   const resultCode = callback.ResultCode;
@@ -163,7 +201,11 @@ function normalizePhone(phone) {
   if (cleaned.startsWith('0')) return `254${cleaned.slice(1)}`;
   if (cleaned.startsWith('254')) return cleaned;
   if (cleaned.startsWith('+254')) return cleaned.slice(1);
-  throw new Error(`Cannot normalize phone number: ${phone}`);
+  throw new AppError('Cannot normalize phone number', 400, {
+    service: 'mpesa',
+    stage: 'normalizePhone',
+    phone,
+  });
 }
 
 function findMetaItem(items, name) {

@@ -13,6 +13,7 @@ const webhooksRouter = require('./api/routes/webhooks.routes');
 const ordersRouter = require('./api/routes/orders.routes');
 const analyticsRouter = require('./api/routes/analytics.routes');
 const { errorHandler } = require('./middleware/errorHandler');
+const { requestLogger } = require('./middleware/requestLogger');
 const { defaultLimiter, paymentLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('dev'));
+app.use(requestLogger);
 
 // ── Body Parsing ──────────────────────────────────────────────────────────
 // Raw body for M-Pesa callback signature verification
