@@ -98,7 +98,7 @@ export default function OrdersDashboard() {
           >
             Previous
           </button>
-          <span className="text-sm text-gray-500">Page {meta.page} of {meta.pages}</span>
+          <span className="text-sm text-gray-500">Page {page} of {meta.pages}</span>
           <button
             disabled={page === meta.pages}
             onClick={() => setPage((p) => p + 1)}

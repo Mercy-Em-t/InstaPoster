@@ -55,7 +55,6 @@ async function processPaymentRetry(job) {
       prisma.mpesaTransaction.upsert({
         where: { paymentId },
         update: {
-          phone: payment.phone,
           checkoutRequestId,
           merchantRequestId,
           status: 'PENDING',

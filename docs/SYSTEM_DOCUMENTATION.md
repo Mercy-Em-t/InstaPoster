@@ -260,7 +260,7 @@ Post created
   → order created in existing system
   → webhook /webhooks/order-created fires
   → orders_bridge updated
-  → analytics endpoint reflects updated clicks/sales/conversion
+  → analytics endpoint reflects updated click/sale/conversion data
 ```
 
 ---

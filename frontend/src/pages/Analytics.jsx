@@ -28,7 +28,7 @@ export default function Analytics() {
         <MiniStat label="Tracked Posts" value={summary.totalPosts} icon={BarChart2} />
         <MiniStat label="Total Clicks" value={summary.totalClicks} icon={MousePointerClick} />
         <MiniStat label="Total Sales" value={summary.totalSales} icon={ShoppingCart} />
-        <MiniStat label="Overall Conversion" value={`${summary.overallConversionRate}%`} icon={TrendingUp} />
+        <MiniStat label="Overall Conversion" value={`${Number(summary.overallConversionRate || 0).toFixed(2)}%`} icon={TrendingUp} />
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
