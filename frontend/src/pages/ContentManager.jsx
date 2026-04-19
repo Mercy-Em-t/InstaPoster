@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { getPosts, createPost, publishPost, deletePost } from '../services/api'
-import { Plus, Send, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Send, Trash2, RefreshCw, Image } from 'lucide-react'
 
 const STATUS_COLORS = {
   DRAFT: 'bg-gray-100 text-gray-600',

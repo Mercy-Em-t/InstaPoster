@@ -11,6 +11,7 @@ const trackingRouter = require('./api/routes/tracking.routes');
 const paymentsRouter = require('./api/routes/payments.routes');
 const webhooksRouter = require('./api/routes/webhooks.routes');
 const { errorHandler } = require('./middleware/errorHandler');
+const { defaultLimiter, paymentLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -32,11 +33,11 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
 // ── API Routes ────────────────────────────────────────────────────────────
-app.use('/api/posts', postsRouter);
-app.use('/api/products', productsRouter);
-app.use('/api/t', trackingRouter);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/webhooks', webhooksRouter);
+app.use('/api/posts', defaultLimiter, postsRouter);
+app.use('/api/products', defaultLimiter, productsRouter);
+app.use('/api/t', defaultLimiter, trackingRouter);
+app.use('/api/payments', paymentLimiter, paymentsRouter);
+app.use('/api/webhooks', defaultLimiter, webhooksRouter);
 
 // ── Error Handler ─────────────────────────────────────────────────────────
 app.use(errorHandler);
