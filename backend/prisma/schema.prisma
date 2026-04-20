@@ -1,0 +1,189 @@
+// InstaPoster — Content-Commerce Extension Layer
+// This system reads products/inventory from the existing shop schemas via SQL views (UNION)
+// and stores only NEW data: content, tracking, payments, order bridge.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// CONTENT SYSTEM
+// ─────────────────────────────────────────────
+
+model ContentPost {
+  id                String         @id @default(cuid())
+  title             String
+  caption           String
+  status            PostStatus     @default(DRAFT)
+  scheduledAt       DateTime?
+  postedAt          DateTime?
+  instagramPostId   String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  slides            ContentSlide[]
+  contentProducts   ContentProduct[]
+  trackingLinks     TrackingLink[]
+
+  @@map("content_posts")
+  @@index([status, scheduledAt])
+  @@index([createdAt])
+}
+
+model ContentSlide {
+  id           String      @id @default(cuid())
+  postId       String
+  imageUrl     String
+  slideOrder   Int
+  overlayText  String?
+  createdAt    DateTime    @default(now())
+
+  post         ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("content_slides")
+  @@index([postId, slideOrder])
+}
+
+// Links a carousel post to product(s) from unified_products view
+model ContentProduct {
+  id            String      @id @default(cuid())
+  postId        String
+  productId     String      // external product id (from existing system)
+  productSource String      // "main_store" | "secondary_store"
+  createdAt     DateTime    @default(now())
+
+  post          ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("content_products")
+  @@index([postId])
+  @@index([productId, productSource])
+}
+
+// ─────────────────────────────────────────────
+// TRACKING SYSTEM
+// ─────────────────────────────────────────────
+
+model TrackingLink {
+  id        String       @id @default(cuid())
+  postId    String
+  code      String       @unique
+  createdAt DateTime     @default(now())
+
+  post      ContentPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  clicks    LinkClick[]
+  orderBridges OrderBridge[]
+
+  @@map("tracking_links")
+  @@index([postId])
+}
+
+model LinkClick {
+  id              String       @id @default(cuid())
+  trackingLinkId  String
+  clickedAt       DateTime     @default(now())
+  ipAddress       String?
+  userAgent       String?
+  deviceType      String?      // "mobile" | "desktop" | "tablet"
+
+  trackingLink    TrackingLink @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+
+  @@map("link_clicks")
+  @@index([trackingLinkId, clickedAt])
+}
+
+// ─────────────────────────────────────────────
+// ORDER BRIDGE (maps Instagram traffic → existing orders)
+// ─────────────────────────────────────────────
+
+model OrderBridge {
+  id              String        @id @default(cuid())
+  externalOrderId String
+  sourceSystem    String        // "main_store" | "secondary_store"
+  orderStatus     OrderStatus   @default(PENDING)
+  trackingLinkId  String?
+  createdAt       DateTime      @default(now())
+
+  trackingLink    TrackingLink? @relation(fields: [trackingLinkId], references: [id])
+
+  @@map("orders_bridge")
+  @@index([externalOrderId, sourceSystem])
+  @@index([trackingLinkId])
+}
+
+// ─────────────────────────────────────────────
+// PAYMENTS — M-Pesa STK Push
+// ─────────────────────────────────────────────
+
+model Payment {
+  id              String          @id @default(cuid())
+  externalOrderId String?
+  amount          Float
+  phone           String
+  status          PaymentStatus   @default(PENDING)
+  provider        String          @default("mpesa")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  mpesaTransaction MpesaTransaction?
+
+  @@map("payments")
+  @@index([externalOrderId])
+  @@index([status, createdAt])
+}
+
+model MpesaTransaction {
+  id                    String          @id @default(cuid())
+  paymentId             String          @unique
+  phone                 String
+  checkoutRequestId     String          @unique
+  merchantRequestId     String?
+  mpesaReceiptNumber    String?
+  amount                Float?
+  status                MpesaTxStatus   @default(PENDING)
+  resultCode            Int?
+  resultDesc            String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  payment               Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("mpesa_transactions")
+  @@index([status, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  POSTED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  TIMEOUT
+}
+
+enum MpesaTxStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  TIMEOUT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  FULFILLED
+}
